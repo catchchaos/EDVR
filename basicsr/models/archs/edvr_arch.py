@@ -347,7 +347,10 @@ class EDVR(nn.Module):
             ResidualBlockNoBN, num_reconstruct_block, num_feat=num_feat)
         # upsample
         self.upconv1 = nn.Conv2d(num_feat, num_feat * 4, 3, 1, 1)
-        self.upconv2 = nn.Conv2d(num_feat, 64 * 4, 3, 1, 1)
+        # self.upconv2 = nn.Conv2d(num_feat, 64 * 4, 3, 1, 1)
+        self.upconv2 = nn.Conv2d(num_feat, num_feat * 4, 3, 1, 1)
+        self.upconv3 = nn.Conv2d(num_feat, num_feat * 4, 3, 1, 1)
+        self.upconv4 = nn.Conv2d(num_feat, 64 * 4, 3, 1, 1)
         self.pixel_shuffle = nn.PixelShuffle(2)
         self.conv_hr = nn.Conv2d(64, 64, 3, 1, 1)
         self.conv_last = nn.Conv2d(64, 3, 3, 1, 1)
@@ -409,12 +412,14 @@ class EDVR(nn.Module):
         out = self.reconstruction(feat)
         out = self.lrelu(self.pixel_shuffle(self.upconv1(out)))
         out = self.lrelu(self.pixel_shuffle(self.upconv2(out)))
+        out = self.lrelu(self.pixel_shuffle(self.upconv3(out)))
+        out = self.lrelu(self.pixel_shuffle(self.upconv4(out)))
         out = self.lrelu(self.conv_hr(out))
         out = self.conv_last(out)
         if self.hr_in:
             base = x_center
         else:
             base = F.interpolate(
-                x_center, scale_factor=4, mode='bilinear', align_corners=False)
+                x_center, scale_factor=16, mode='bilinear', align_corners=False)
         out += base
         return out
