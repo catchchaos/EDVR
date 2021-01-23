@@ -37,7 +37,7 @@ def main(mode='folder'):
     opt['use_shuffle'] = True
     opt['num_worker_per_gpu'] = 1
     opt['batch_size_per_gpu'] = 16
-    opt['scale'] = 4
+    opt['scale'] = 16
 
     opt['dataset_enlarge_ratio'] = 1
 
@@ -76,4 +76,4 @@ def main(mode='folder'):
 
 
 if __name__ == '__main__':
-    main()
+    main('lmdb')

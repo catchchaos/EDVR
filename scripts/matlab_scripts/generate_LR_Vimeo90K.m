@@ -1,14 +1,14 @@
 function generate_LR_Vimeo90K()
 %% matlab code to genetate bicubic-downsampled for Vimeo90K dataset
 
-up_scale = 4;
-mod_scale = 4;
+up_scale = 16;
+mod_scale = 16;
 idx = 0;
-filepaths = dir('/home/xtwang/datasets/vimeo90k/vimeo_septuplet/sequences/*/*/*.png');
+filepaths = dir('/local/scratch/pmh64/datasets/vimeo_septuplet/sequences/*/*/*.png');
 for i = 1 : length(filepaths)
     [~,imname,ext] = fileparts(filepaths(i).name);
     folder_path = filepaths(i).folder;
-    save_LR_folder = strrep(folder_path,'vimeo_septuplet','vimeo_septuplet_matlabLRx4');
+    save_LR_folder = strrep(folder_path,'vimeo_septuplet','vimeo_septuplet_matlabLRx16');
     if ~exist(save_LR_folder, 'dir')
         mkdir(save_LR_folder);
     end
@@ -24,9 +24,10 @@ for i = 1 : length(filepaths)
         img = imread(fullfile(folder_path, [imname, ext]));
         img = im2double(img);
         % modcrop
-        img = modcrop(img, mod_scale);
-        % LR
-        im_LR = imresize(img, 1/up_scale, 'bicubic');
+        im_LR = modcrop(img, mod_scale);
+        for l = 1 : log2(up_scale)
+            im_LR = impyramid(im_LR, 'reduce');
+        end
         if exist('save_LR_folder', 'var')
             imwrite(im_LR, fullfile(save_LR_folder, [imname, '.png']));
         end

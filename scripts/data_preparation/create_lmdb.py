@@ -119,7 +119,7 @@ def create_lmdb_for_vimeo90k():
         folder_path, lmdb_path, img_path_list, keys, multiprocessing_read=True)
 
     # LQ
-    folder_path = 'datasets/vimeo90k/vimeo_septuplet_matlabLRx4/sequences'
+    folder_path = 'datasets/vimeo90k/vimeo_septuplet_matlabLRx16/sequences'
     lmdb_path = 'datasets/vimeo90k/vimeo90k_train_LR7frames.lmdb'
     train_list_path = 'datasets/vimeo90k/vimeo_septuplet/sep_trainlist.txt'
     img_path_list, keys = prepare_keys_vimeo90k(folder_path, train_list_path,
