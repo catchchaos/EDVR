@@ -2,9 +2,12 @@ import importlib
 import torch
 from collections import Counter
 from copy import deepcopy
+import os
 from os import path as osp
 from torch import distributed as dist
 from tqdm import tqdm
+import subprocess as sp
+from PIL import Image
 
 from basicsr.models.sr_model import SRModel
 from basicsr.utils import get_root_logger, imwrite, tensor2img
@@ -19,6 +22,15 @@ class VideoBaseModel(SRModel):
     def dist_validation(self, dataloader, current_iter, tb_logger, save_img):
         dataset = dataloader.dataset
         dataset_name = dataset.opt['name']
+        save_vid = self.opt['val']['save_vid']
+        
+        if save_vid:
+            dump = open(os.devnull, 'w')
+            save_path = osp.join(self.opt['path']['visualization'], 'out.avi')
+            vid = sp.Popen(['ffmpeg', '-framerate', '120', '-i', '-', '-c:v', 'libx264',
+                            '-preset', 'ultrafast', '-y', save_path],
+                           stdin=sp.PIPE, stderr=dump)
+        
         with_metrics = self.opt['val']['metrics'] is not None
         # initialize self.metric_results
         # It is a dict: {
@@ -45,9 +57,6 @@ class VideoBaseModel(SRModel):
             val_data = dataset[idx]
             val_data['lq'].unsqueeze_(0)
             val_data['gt'].unsqueeze_(0)
-            folder = val_data['folder']
-            frame_idx, max_idx = val_data['idx'].split('/')
-            lq_path = val_data['lq_path']
 
             self.feed_data(val_data)
             self.test()
@@ -63,6 +72,9 @@ class VideoBaseModel(SRModel):
             torch.cuda.empty_cache()
 
             if save_img:
+                folder = val_data['folder']
+                frame_idx, max_idx = val_data['idx'].split('/')
+                lq_path = val_data['lq_path']
                 if self.opt['is_train']:
                     raise NotImplementedError(
                         'saving image is not supported during training.')
@@ -84,6 +96,9 @@ class VideoBaseModel(SRModel):
                             self.opt['path']['visualization'], dataset_name,
                             folder, f'{img_name}_{self.opt["name"]}.png')
                 imwrite(result_img, save_img_path)
+            if self.opt['val']['save_vid']:
+                frame = Image.fromarray(result_img[...,::-1])
+                frame.save(vid.stdin, 'PNG')
 
             if with_metrics:
                 # calculate metrics
@@ -99,11 +114,11 @@ class VideoBaseModel(SRModel):
             if rank == 0:
                 for _ in range(world_size):
                     pbar.update(1)
-                    pbar.set_description(
-                        f'Test {folder}:'
-                        f'{int(frame_idx) + world_size}/{max_idx}')
         if rank == 0:
             pbar.close()
+
+        
+        vid.stdin.close(); vid.communicate()
 
         if with_metrics:
             if self.opt['dist']:
