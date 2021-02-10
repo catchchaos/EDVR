@@ -305,7 +305,9 @@ class EDVR(nn.Module):
                  center_frame_idx=None,
                  hr_in=False,
                  with_predeblur=False,
-                 with_tsa=True):
+                 with_tsa=True,
+                 scale=4,
+                 do_twice=False):
         super(EDVR, self).__init__()
         if center_frame_idx is None:
             self.center_frame_idx = num_frame // 2
@@ -314,6 +316,8 @@ class EDVR(nn.Module):
         self.hr_in = hr_in
         self.with_predeblur = with_predeblur
         self.with_tsa = with_tsa
+        self.scale = scale
+        self.do_twice = do_twice
 
         # extract features for each frame
         if self.with_predeblur:
@@ -347,10 +351,12 @@ class EDVR(nn.Module):
             ResidualBlockNoBN, num_reconstruct_block, num_feat=num_feat)
         # upsample
         self.upconv1 = nn.Conv2d(num_feat, num_feat * 4, 3, 1, 1)
-        # self.upconv2 = nn.Conv2d(num_feat, 64 * 4, 3, 1, 1)
-        self.upconv2 = nn.Conv2d(num_feat, num_feat * 4, 3, 1, 1)
-        self.upconv3 = nn.Conv2d(num_feat, num_feat * 4, 3, 1, 1)
-        self.upconv4 = nn.Conv2d(num_feat, 64 * 4, 3, 1, 1)
+        if self.scale == 4:
+            self.upconv2 = nn.Conv2d(num_feat, 64 * 4, 3, 1, 1)
+        elif self.scale == 16:
+            self.upconv2 = nn.Conv2d(num_feat, num_feat * 4, 3, 1, 1)
+            self.upconv3 = nn.Conv2d(num_feat, num_feat * 4, 3, 1, 1)
+            self.upconv4 = nn.Conv2d(num_feat, 64 * 4, 3, 1, 1)
         self.pixel_shuffle = nn.PixelShuffle(2)
         self.conv_hr = nn.Conv2d(64, 64, 3, 1, 1)
         self.conv_last = nn.Conv2d(64, 3, 3, 1, 1)
@@ -359,6 +365,15 @@ class EDVR(nn.Module):
         self.lrelu = nn.LeakyReLU(negative_slope=0.1, inplace=True)
 
     def forward(self, x):
+        b, t, c, h, w = x.size()
+        output = self.forward_inner(x)
+        if self.do_twice:
+            output = output.repeat(1, t, 1, 1, 1)
+            output = self.forward_inner(output)
+
+        return output
+
+    def forward_inner(self, x):
         b, t, c, h, w = x.size()
         if self.hr_in:
             assert h % 16 == 0 and w % 16 == 0, (
@@ -412,14 +427,15 @@ class EDVR(nn.Module):
         out = self.reconstruction(feat)
         out = self.lrelu(self.pixel_shuffle(self.upconv1(out)))
         out = self.lrelu(self.pixel_shuffle(self.upconv2(out)))
-        out = self.lrelu(self.pixel_shuffle(self.upconv3(out)))
-        out = self.lrelu(self.pixel_shuffle(self.upconv4(out)))
+        if self.scale == 16:
+            out = self.lrelu(self.pixel_shuffle(self.upconv3(out)))
+            out = self.lrelu(self.pixel_shuffle(self.upconv4(out)))
         out = self.lrelu(self.conv_hr(out))
         out = self.conv_last(out)
         if self.hr_in:
             base = x_center
         else:
             base = F.interpolate(
-                x_center, scale_factor=16, mode='bilinear', align_corners=False)
+                x_center, scale_factor=self.scale, mode='bilinear', align_corners=False)
         out += base
         return out
