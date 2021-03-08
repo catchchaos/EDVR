@@ -353,6 +353,9 @@ class EDVR(nn.Module):
         self.upconv1 = nn.Conv2d(num_feat, num_feat * 4, 3, 1, 1)
         if self.scale == 4:
             self.upconv2 = nn.Conv2d(num_feat, 64 * 4, 3, 1, 1)
+        elif self.scale == 8:
+            self.upconv2 = nn.Conv2d(num_feat, num_feat * 4, 3, 1, 1)
+            self.upconv3 = nn.Conv2d(num_feat, 64 * 4, 3, 1, 1)
         elif self.scale == 16:
             self.upconv2 = nn.Conv2d(num_feat, num_feat * 4, 3, 1, 1)
             self.upconv3 = nn.Conv2d(num_feat, num_feat * 4, 3, 1, 1)
@@ -382,7 +385,9 @@ class EDVR(nn.Module):
             assert h % 4 == 0 and w % 4 == 0, (
                 'The height and width must be multiple of 4.')
 
-        x_center = x[:, self.center_frame_idx, :, :, :].contiguous()
+        x_center = x[:, -3:, :, :, :].reshape(b, 3, h*2, w*2)
+        x = x[:, :-3, :, :, :].contiguous()
+        b, t, c, h, w = x.size()
 
         # extract features for each frame
         # L1
@@ -427,6 +432,8 @@ class EDVR(nn.Module):
         out = self.reconstruction(feat)
         out = self.lrelu(self.pixel_shuffle(self.upconv1(out)))
         out = self.lrelu(self.pixel_shuffle(self.upconv2(out)))
+        if self.scale == 8:
+            out = self.lrelu(self.pixel_shuffle(self.upconv3(out)))
         if self.scale == 16:
             out = self.lrelu(self.pixel_shuffle(self.upconv3(out)))
             out = self.lrelu(self.pixel_shuffle(self.upconv4(out)))
@@ -436,6 +443,6 @@ class EDVR(nn.Module):
             base = x_center
         else:
             base = F.interpolate(
-                x_center, scale_factor=self.scale, mode='bilinear', align_corners=False)
+                x_center, scale_factor=self.scale/2, mode='bilinear', align_corners=False)
         out += base
         return out
