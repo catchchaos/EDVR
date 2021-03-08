@@ -27,9 +27,11 @@ class VideoBaseModel(SRModel):
         if save_vid:
             dump = open(os.devnull, 'w')
             save_path = osp.join(self.opt['path']['visualization'], 'out.avi')
-            vid = sp.Popen(['ffmpeg', '-framerate', '120', '-i', '-', '-c:v', 'libx264',
-                            '-preset', 'ultrafast', '-y', save_path],
-                           stdin=sp.PIPE, stderr=dump)
+            fps = '30'
+            crf = '18'
+            vid = sp.Popen(['ffmpeg', '-framerate', fps, '-i', '-',
+                            '-c:v', 'libx264', '-preset', 'veryslow', '-crf', crf, '-y',
+                            save_path], stdin=sp.PIPE, stderr=dump)
         
         with_metrics = self.opt['val']['metrics'] is not None
         # initialize self.metric_results
